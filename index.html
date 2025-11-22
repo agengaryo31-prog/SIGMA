@@ -55,7 +55,6 @@
   margin-top: 10px;
   border-top: 2px solid rgba(255,255,255,0.1);
 }
-
 </style>
 </head>
 <body>
@@ -148,14 +147,19 @@
     </div>
   </div>
 
+<div id="summaryBox"
+     style="padding:15px; background:#fafafa; border-radius:6px; margin-top:20px;">
+</div>
+
+
   <footer>
-    <div id="notes" class="notice">Dibuat oleh</div>
+    <div id="notes" class="notice"></div>
   </footer>
 
 <footer class="site-footer">
   © 2025 • SIGMA • Developed by <strong>Ageng - Ardel - Fika - Lita</strong>
 </footer>
-  
+
 </div>
 
 <script>
@@ -178,6 +182,60 @@ let BASE_DATE = null;
 let mapObj = null;
 let heatMapInstance = null;
 let timelineMaxDay = 0;
+
+function updateInsightBox(dailyCounts){
+  const notes = document.getElementById("notes");
+
+  const days = Object.keys(dailyCounts).sort();
+  const values = days.map(d => dailyCounts[d]);
+
+  if(values.length === 0){
+    notes.innerText = "Tidak ada data kejadian.";
+    return;
+  }
+
+  const maxVal = Math.max(...values);
+  const maxDay = days[values.indexOf(maxVal)];
+
+  const avg = values.reduce((a,b)=>a+b,0) / values.length;
+
+  notes.innerHTML =
+    `🔥 <strong>Insight otomatis:</strong><br>
+     • Puncak kejadian tertinggi terjadi pada <strong>${maxDay}</strong> (${maxVal} titik).<br>
+     • Rata-rata kejadian harian: <strong>${avg.toFixed(2)}</strong> titik.<br>
+     • Jumlah hari dengan kejadian di atas rata-rata: <strong>${
+        values.filter(v => v > avg).length
+      }</strong> hari.<br>
+     • Total hari tercatat: <strong>${values.length}</strong> hari.`;
+}
+
+function bootstrapAll(){
+
+  // ============================
+  // 1. Hitung dailyCounts dulu
+  // ============================
+  const dailyCounts = {};
+  DATA.forEach(d => {
+    const key = d.date.toISOString().slice(0,10);
+    dailyCounts[key] = (dailyCounts[key] || 0) + 1;
+  });
+
+  // ============================
+  // 2. Panggil insight otomatis
+  // ============================
+  updateInsightBox(dailyCounts);
+
+  // ============================
+  // 3. Lanjut fungsi existing
+  // ============================
+  document.getElementById('summaryBox').innerText = '';
+  buildMap();
+  buildCube();
+  buildYearSelector();
+  buildBottomCharts();
+  buildYearButtons();
+  buildHeatControls();
+}
 
 /* Load CSV */
 function loadCSV(path){
@@ -215,16 +273,6 @@ function preprocess(){
   timelineMaxDay = Math.max(...DATA.map(d=>d.dayIndex));
 }
 
-/* Bootstrap */
-function bootstrapAll(){
-  document.getElementById('notes').innerText = '';
-  buildMap();
-  buildCube();
-  buildYearSelector();
-  buildBottomCharts();
-  buildYearButtons(); // year heatmap buttons
-  buildHeatControls(); // initial heatmap render for first available year
-}
 
 /* Map + Time slider + Play/Pause */
 function buildMap(){
@@ -489,5 +537,3 @@ loadCSV(CSV_PATH);
 </script>
 </body>
 </html>
-
-
