@@ -13,7 +13,27 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
-  :root{ --bg:#f6f7fb; --panel:#ffffff; --accent:#ff5a3c; --muted:#6b7280; }
+  :root{ --bg:#f6f7fb; --panel:#ffffff; --accent:#074364ff; --muted:#6b7280; }
+  /* Splash / intro styles */
+  #splash {
+    position: fixed; inset: 0; display:flex;align-items:center;justify-content:center;
+    background: linear-gradient(180deg, #071233 0%, #0b4a6b 100%);
+    color: #ffffff; z-index: 9999; transition: opacity .6s ease, visibility .6s ease;
+  }
+  #splash.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+  #splash .splash-inner{ text-align:center; }
+  #splash h1{ font-size:56px; margin:0 0 8px; letter-spacing:1px; font-weight:700 }
+  #splash p{ margin:0; opacity:0.9; font-size:18px }
+
+  /* per-letter animation */
+  .splash-letter{ display:inline-block; opacity:0; transform:translateY(8px); }
+  @keyframes letterIn { from { opacity:0; transform:translateY(8px);} to { opacity:1; transform:translateY(0);} }
+  .splash-sub{ display:block; opacity:0; transform:translateY(12px); }
+  @keyframes subIn { from { opacity:0; transform:translateY(12px);} to { opacity:1; transform:translateY(0);} }
+
+  /* Entry animation for containers */
+  .animate-target{ opacity:0; transform: translateY(12px); transition: opacity .9s cubic-bezier(.2,.9,.2,1), transform .9s cubic-bezier(.2,.9,.2,1); }
+  .animate-target.enter{ opacity:1; transform: translateY(0); }
   html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);color:#111}
   header{background:#071233;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px}
   header h1{margin:0;font-size:16px}
@@ -32,7 +52,7 @@
   .accordion-header{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;cursor:pointer}
   .accordion-body{display:none;padding:6px 10px;border-top:1px solid #f1f5f9}
   .sm-item{height:160px;background:#ffffff;border-radius:6px;padding:6px;box-shadow:inset 0 0 6px rgba(2,6,23,0.03)}
-  .bottom{padding:12px;display:grid;grid-template-columns:1fr 520px;gap:12px}
+  .bottom{padding:12px;display:flex;grid-template-columns:520px 1fr;gap:12px}
   .chartWrap{background:var(--panel);padding:10px;border-radius:10px;box-shadow:0 6px 18px rgba(8,18,40,0.04)}
   .tabs{display:flex;gap:8px;margin-bottom:8px}
   .tab{padding:6px 10px;border-radius:6px;background:#f3f4f6;cursor:pointer;font-size:13px}
@@ -44,7 +64,7 @@
   .muted{color:var(--muted);font-size:13px}
   .year-buttons{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .year-buttons button{padding:6px 8px;background:#fff;color:#111;border:1px solid #e6e9ef;border-radius:6px;cursor:pointer}
-  .year-buttons button.active{background:#ff3b2f;color:#fff;border-color:#ff3b2f}
+  .year-buttons button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
   #timeSlider{width:100%;margin-top:8px}
   .site-footer {
   background: #071233;
@@ -58,6 +78,21 @@
 </style>
 </head>
 <body>
+
+<!-- Splash intro -->
+<div id="splash">
+  <div class="splash-inner">
+    <h1 id="splashTitle">
+      <span class="splash-letter" data-i="0">S</span>
+      <span class="splash-letter" data-i="1">I</span>
+      <span class="splash-letter" data-i="2">G</span>
+      <span class="splash-letter" data-i="3">M</span>
+      <span class="splash-letter" data-i="4">A</span>
+    </h1>
+    <p id="splashSubtitle" class="splash-sub">Spatio-temporal Integrated Grid Map Analyzer</p>
+  </div>
+</div>
+
 
 <header>
   <h1>SIGMA : Spatio-temporal Integrated Grid Map Analyzer </h1>
@@ -83,7 +118,7 @@
       </div>
       <div style="margin:12px 0 8px 0; display:flex; gap:8px; align-items:center;">
         <input type="file" id="csvInput" accept=".csv" style="display:none">
-        <button id="btnUploadCSV" style="background:#ff5a3c;color:#fff;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-weight:500;">Upload CSV</button>
+        <button id="btnUploadCSV" style="background:var(--accent);color:#fff;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-weight:500;">Upload CSV</button>
         <span id="csvFileName" class="muted"></span>
       </div>
 
@@ -127,7 +162,7 @@
   </div>
 
   <div class="bottom">
-    <div class="chartWrap">
+    <div class="chartWrap" style="height:520px;">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <strong>Grafik Kejadian per Waktu</strong>
         <div style="display:flex;gap:10px">
@@ -139,16 +174,16 @@
         </div>
       </div>
 
-      <div id="chartMonthly" style="height:flex;margin-top:8px"></div>
-      <div id="chartDaily" style="height:flex;margin-top:8px;display:none"></div>
-      <div id="chartYearly" style="height:flex;margin-top:8px;display:none"></div>
+      <div id="chartMonthly" style="height:100%;margin-top:8px"></div>
+      <div id="chartDaily" style="height:100%;margin-top:8px;display:none"></div>
+      <div id="chartYearly" style="height:100%;margin-top:8px;display:none"></div>
     </div>
 
     <div class="chartWrap">
       <strong>Heatmap Per Tahun</strong>
       <div class="muted">Klik tahun untuk render heatmap tahunan</div>
       <div id="yearButtons" class="year-buttons"></div>
-      <div id="heatmap" style="height:300px;margin-top:8px"></div>
+      <div id="heatmap" style="height:520px;margin-top:8px"></div>
     </div>
   </div>
 
@@ -513,17 +548,17 @@ function buildBottomCharts(){
     byMonth[k] = (byMonth[k]||0) + 1;
   });
   const months = Object.keys(byMonth).sort();
-  Plotly.newPlot('chartMonthly',[{x:months,y:months.map(k=>byMonth[k]),mode:'lines+markers'}],{margin:{l:40,r:10,t:6,b:40}});
+  Plotly.newPlot('chartMonthly',[{x:months,y:months.map(k=>byMonth[k]),mode:'lines+markers'}],{margin:{l:40,r:10,t:6,b:40}},{responsive:true});
 
   const byDay = {};
   DATA.forEach(d=>{ const k = d.date.toISOString().slice(0,10); byDay[k] = (byDay[k]||0)+1; });
   const days = Object.keys(byDay).sort();
-  Plotly.newPlot('chartDaily',[{x:days,y:days.map(k=>byDay[k]),mode:'lines'}],{margin:{l:40,r:10,t:6,b:40}});
+  Plotly.newPlot('chartDaily',[{x:days,y:days.map(k=>byDay[k]),mode:'lines'}],{margin:{l:40,r:10,t:6,b:40}},{responsive:true});
 
   const byYear = {};
   DATA.forEach(d=>{ byYear[d.year] = (byYear[d.year]||0)+1; });
   const yrs = Object.keys(byYear).sort();
-  Plotly.newPlot('chartYearly',[{x:yrs,y:yrs.map(k=>byYear[k]),type:'bar'}],{margin:{l:40,r:10,t:6,b:40}});
+  Plotly.newPlot('chartYearly',[{x:yrs,y:yrs.map(k=>byYear[k]),type:'bar'}],{margin:{l:40,r:10,t:6,b:40}},{responsive:true});
 
   document.querySelectorAll('.tab').forEach(t=>{
     t.onclick = ()=>{
@@ -533,6 +568,10 @@ function buildBottomCharts(){
       document.getElementById('chartMonthly').style.display = (tab==='monthly') ? '' : 'none';
       document.getElementById('chartDaily').style.display = (tab==='daily') ? '' : 'none';
       document.getElementById('chartYearly').style.display = (tab==='yearly') ? '' : 'none';
+      // resize Plotly when visibility changes
+      try{ Plotly.Plots.resize(document.getElementById('chartMonthly')); }catch(e){}
+      try{ Plotly.Plots.resize(document.getElementById('chartDaily')); }catch(e){}
+      try{ Plotly.Plots.resize(document.getElementById('chartYearly')); }catch(e){}
     };
   });
 }
@@ -651,7 +690,55 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 });
 
+// Splash handling and entry animations
+document.addEventListener('DOMContentLoaded', function() {
+  const splash = document.getElementById('splash');
+  const targets = [
+    document.querySelector('header'),
+    document.getElementById('mapWrap'),
+    document.getElementById('cubePlot'),
+    document.querySelector('.right'),
+    ...Array.from(document.querySelectorAll('.chartWrap')),
+    document.getElementById('summaryBox')
+  ].filter(Boolean);
+
+  // mark targets as animate-target
+  targets.forEach(t => t.classList.add('animate-target'));
+
+  // animate splash letters and subtitle, then hide splash and animate targets
+  const letters = Array.from(document.querySelectorAll('.splash-letter'));
+  const subtitle = document.getElementById('splashSubtitle');
+  // per-letter animation settings
+  const letterDur = 700; // ms
+  const letterStagger = 120; // ms
+  letters.forEach((sp, i) => {
+    sp.style.animation = `letterIn ${letterDur}ms cubic-bezier(.2,.9,.2,1) forwards`;
+    sp.style.animationDelay = `${i * letterStagger}ms`;
+  });
+  // subtitle appears after last letter
+  if (subtitle) {
+    const subDelay = letters.length * letterStagger + 150; // ms
+    subtitle.style.animation = `subIn 800ms cubic-bezier(.2,.9,.2,1) forwards`;
+    subtitle.style.animationDelay = `${subDelay}ms`;
+  }
+
+  // total splash show time (letters + subtitle + small pause)
+  const totalSplash = letters.length * letterStagger + letterDur + 800; // ms
+  setTimeout(() => {
+    if (splash) splash.classList.add('hidden');
+    // start animating targets shortly after splash fades
+    setTimeout(() => {
+      targets.forEach((el, i) => {
+        setTimeout(() => {
+          el.classList.add('enter');
+          try{ Plotly.Plots.resize(el.querySelector('.js-plotly-plot') || document.getElementById('chartMonthly')); }catch(e){}
+          try{ if (heatMapInstance) heatMapInstance.invalidateSize(); }catch(e){}
+        }, i * 140);
+      });
+    }, 300);
+  }, totalSplash);
+});
+
 </script>
 </body>
 </html>
-
