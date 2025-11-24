@@ -61,7 +61,7 @@
 
 <header>
   <h1>SIGMA : Spatio-temporal Integrated Grid Map Analyzer </h1>
-  <div style="margin-left:auto;font-size:13px;opacity:.85">CSV: <code style="background:#0b1220;padding:2px 6px;border-radius:4px;margin-left:6px">Sumber data Modis dan Aqua dari LHK</code></div>
+  <div id="csvInfo" style="margin-left:auto;font-size:13px;opacity:.85">Sumber data: <code style="background:#0b1220;padding:2px 6px;border-radius:4px;margin-left:6px">Tolong Upload File CSV</code></div>
 </header>
 
 <div class="container">
@@ -80,6 +80,11 @@
           <button id="btnPlay">Play</button>
           <button id="btnReset">Reset</button>
         </div>
+      </div>
+      <div style="margin:12px 0 8px 0; display:flex; gap:8px; align-items:center;">
+        <input type="file" id="csvInput" accept=".csv" style="display:none">
+        <button id="btnUploadCSV" style="background:#ff5a3c;color:#fff;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-weight:500;">Upload CSV</button>
+        <span id="csvFileName" class="muted"></span>
       </div>
 
       <div id="mapWrap" class="panelSmall" >
@@ -125,7 +130,7 @@
     <div class="chartWrap">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <strong>Grafik Kejadian per Waktu</strong>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:10px">
           <div class="tabs">
             <div class="tab active" data-tab="monthly">Bulanan</div>
             <div class="tab" data-tab="daily">Harian</div>
@@ -134,9 +139,9 @@
         </div>
       </div>
 
-      <div id="chartMonthly" style="height:200px;margin-top:8px"></div>
-      <div id="chartDaily" style="height:200px;margin-top:8px;display:none"></div>
-      <div id="chartYearly" style="height:200px;margin-top:8px;display:none"></div>
+      <div id="chartMonthly" style="height:flex;margin-top:8px"></div>
+      <div id="chartDaily" style="height:flex;margin-top:8px;display:none"></div>
+      <div id="chartYearly" style="height:flex;margin-top:8px;display:none"></div>
     </div>
 
     <div class="chartWrap">
@@ -169,8 +174,22 @@ const CSV_PATH = "api_kutai_with_lonlat.csv";
 /* Utilities */
 function parseDateISO(s){
   if(!s) return null;
-  const t = s.trim().replace(/\//g,'-');
-  return new Date(t + 'T00:00:00Z');
+  // Coba parse langsung
+  let t = s.trim();
+  let d = new Date(t.replace(/\//g,'-') + 'T00:00:00Z');
+  if (!isNaN(d.getTime())) return d;
+  // Fallback: format M/D/YYYY atau MM/DD/YYYY
+  const mdy = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (mdy) {
+    // Bulan -1 karena JS bulan 0-based
+    return new Date(Date.UTC(Number(mdy[3]), Number(mdy[1])-1, Number(mdy[2])));
+  }
+  // Fallback: format YYYY-MM-DD
+  const ymd = t.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (ymd) {
+    return new Date(Date.UTC(Number(ymd[1]), Number(ymd[2])-1, Number(ymd[3])));
+  }
+  return null;
 }
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
 function safeNum(v,def=NaN){ const n = Number(v); return isNaN(n)?def:n; }
@@ -184,29 +203,32 @@ let heatMapInstance = null;
 let timelineMaxDay = 0;
 
 function updateInsightBox(dailyCounts){
-  const notes = document.getElementById("notes");
-
+  const summaryBox = document.getElementById("summaryBox");
   const days = Object.keys(dailyCounts).sort();
   const values = days.map(d => dailyCounts[d]);
 
   if(values.length === 0){
-    notes.innerText = "Tidak ada data kejadian.";
+    summaryBox.innerHTML = '<div class="summary-container"><strong>Leaflet</strong><br>Tidak ada data kejadian.</div>';
     return;
   }
 
   const maxVal = Math.max(...values);
   const maxDay = days[values.indexOf(maxVal)];
-
   const avg = values.reduce((a,b)=>a+b,0) / values.length;
+  const aboveAvg = values.filter(v => v > avg).length;
 
-  notes.innerHTML =
-    `🔥 <strong>Insight otomatis:</strong><br>
-     • Puncak kejadian tertinggi terjadi pada <strong>${maxDay}</strong> (${maxVal} titik).<br>
-     • Rata-rata kejadian harian: <strong>${avg.toFixed(2)}</strong> titik.<br>
-     • Jumlah hari dengan kejadian di atas rata-rata: <strong>${
-        values.filter(v => v > avg).length
-      }</strong> hari.<br>
-     • Total hari tercatat: <strong>${values.length}</strong> hari.`;
+  summaryBox.innerHTML = `
+    <div class="summary-container" style="background:#fff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06); padding:18px; margin-bottom:8px; text-align:center;">
+      <div style="font-weight:bold; font-size:15px; margin-bottom:6px;">KESIMPULAN</div>
+      <div style="font-size:16px; margin-bottom:8px;">🔥 Insight dari data:</div>
+      <div style="font-size:14px; color:#222;">
+        Puncak kejadian tertinggi terjadi pada <strong>${maxDay}</strong> (${maxVal} titik).<br>
+        Rata-rata kejadian harian: <strong>${avg.toFixed(2)}</strong> titik.<br>
+        Jumlah hari dengan kejadian di atas rata-rata: <strong>${aboveAvg}</strong> hari.<br>
+        Total hari tercatat: <strong>${values.length}</strong> hari.
+      </div>
+    </div>
+  `;
 }
 
 function bootstrapAll(){
@@ -228,7 +250,7 @@ function bootstrapAll(){
   // ============================
   // 3. Lanjut fungsi existing
   // ============================
-  document.getElementById('summaryBox').innerText = '';
+  // document.getElementById('summaryBox').innerText = '';
   buildMap();
   buildCube();
   buildYearSelector();
@@ -238,32 +260,80 @@ function bootstrapAll(){
 }
 
 /* Load CSV */
-function loadCSV(path){
-  Papa.parse(path, {
-    download:true, header:true, dynamicTyping:true,
-    complete: (res)=>{
-      if(!res || !res.data || res.data.length===0){
-        document.getElementById('notes').innerText = 'CSV kosong atau gagal di-parse.';
-        return;
-      }
-      RAW = res.data.filter(r => r.ACQ_DATE && (r.longitude || r.longitude===0) && (r.latitude || r.latitude===0));
-      if(RAW.length===0){ document.getElementById('notes').innerText = 'CSV tidak mengandung baris yang valid.'; return; }
-      preprocess();
-      bootstrapAll();
-    },
-    error: (err)=>{ document.getElementById('notes').innerText = 'Gagal load CSV: ' + err; }
-  });
+function loadCSV(input){
+  // input bisa berupa path string (default) atau File object (upload)
+  if (typeof input === 'string') {
+    Papa.parse(input, {
+      download:true, header:true, dynamicTyping:true,
+      complete: handleCSVResult,
+      error: (err)=>{ document.getElementById('notes').innerText = 'Gagal load CSV: ' + err; }
+    });
+  } else if (input instanceof File) {
+    Papa.parse(input, {
+      header:true, dynamicTyping:true,
+      complete: handleCSVResult,
+      error: (err)=>{ document.getElementById('notes').innerText = 'Gagal load CSV: ' + err; }
+    });
+  }
+}
+
+function handleCSVResult(res) {
+  if(!res || !res.data || res.data.length===0){
+    document.getElementById('notes').innerText = 'CSV kosong atau gagal di-parse.';
+    return;
+  }
+  // Deteksi nama kolom yang umum
+  function getField(obj, keys) {
+    for (let k of keys) {
+      if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
+    }
+    return undefined;
+  }
+
+  let errorRows = [];
+  RAW = res.data.map((r, idx) => {
+    // Ambil field dengan fallback beberapa nama
+    const date = getField(r, ["ACQ_DATE", "date", "Date", "tanggal"]);
+    const lat = getField(r, ["latitude", "lat", "LAT", "Latitude"]);
+    const lon = getField(r, ["longitude", "lon", "LON", "LONGITUDE", "Longitude"]);
+    // Cek validitas
+    const isEmptyRow = Object.values(r).every(v => v === null || v === undefined || v === "");
+    if (!isEmptyRow && (!date || (!lon && lon !== 0) || (!lat && lat !== 0))) {
+      errorRows.push({row: idx+2, reason: `Missing field: ${!date?'date ':''}${!lat?'lat ':''}${!lon?'lon ':''}`});
+    }
+    return { ...r, _date: date, _lat: lat, _lon: lon };
+  }).filter(r => r._date && (r._lon || r._lon===0) && (r._lat || r._lat===0));
+
+  if(RAW.length===0){
+    let msg = 'CSV tidak mengandung baris yang valid.';
+    if (errorRows.length > 0) {
+      msg += '<br>Baris yang gagal:<br>' + errorRows.slice(0,10).map(e => `Baris ${e.row}: ${e.reason}`).join('<br>');
+      if (errorRows.length > 10) msg += `<br>...dan ${errorRows.length-10} baris lain.`;
+    }
+    document.getElementById('notes').innerHTML = msg;
+    return;
+  }
+  // Hanya tampilkan notifikasi jika ada errorRows selain baris kosong
+  if (errorRows.length > 0) {
+    let msg = `Ada ${errorRows.length} baris yang gagal diproses.<br>Contoh:<br>` + errorRows.slice(0,5).map(e => `Baris ${e.row}: ${e.reason}`).join('<br>');
+    document.getElementById('notes').innerHTML = msg;
+  } else {
+    document.getElementById('notes').innerText = '';
+  }
+  preprocess();
+  bootstrapAll();
 }
 
 /* Preprocess */
 function preprocess(){
   DATA = RAW.map(r=>{
-    const date = parseDateISO(r.ACQ_DATE) || (r.date ? new Date(r.date) : null);
-    const year = safeNum(r.YEAR, null) || (date?date.getUTCFullYear():null);
-    const month = safeNum(r.MONTH, null) || (date?date.getUTCMonth()+1:null);
-    const lon = safeNum(r.longitude, r.LON || r.LONGITUDE);
-    const lat = safeNum(r.latitude, r.LAT || r.LATITUDE);
-    const conf = safeNum(r.CONFIDENCE, safeNum(r.conf, 50));
+    // Ambil field dengan fallback beberapa nama
+    const date = parseDateISO(r._date) || (r.date ? new Date(r.date) : null);
+    const year = safeNum(r.YEAR, r.year, r.tahun) || (date?date.getUTCFullYear():null);
+    const month = safeNum(r.MONTH, r.month, r.bulan) || (date?date.getUTCMonth()+1:null);
+    const lon = safeNum(r._lon, r.longitude, r.LON, r.LONGITUDE, r.lon);
+    const lat = safeNum(r._lat, r.latitude, r.LAT, r.lat);
+    const conf = safeNum(r.CONFIDENCE, r.conf, r.confidence, r.kepercayaan, 50);
     return { raw:r, date, year:year, month:month, longitude:lon, latitude:lat, confidence:conf };
   }).filter(d => d.date && Number.isFinite(d.longitude) && Number.isFinite(d.latitude));
 
@@ -512,6 +582,32 @@ function renderHeatmapYear(year){
       gradient: {0.0: 'rgba(0,0,0,0)', 0.25:'#fff7bc', 0.5:'#fec44f', 0.75:'#fe9929', 1.0:'#cc0018'}
     }).addTo(heatMapInstance);
     setTimeout(()=> heatMapInstance.invalidateSize(), 80);
+
+    // Tambahkan legenda heatmap
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function (map) {
+      const div = L.DomUtil.create('div', 'info legend');
+      div.style.background = '#fff';
+      div.style.padding = '8px';
+      div.style.borderRadius = '6px';
+      div.style.boxShadow = '0 2px 8px rgba(0,0,0,0.12)';
+      div.style.fontSize = '13px';
+      div.innerHTML += '<b>Heatmap Intensity</b><br>';
+      div.innerHTML += '<div style="display:flex;align-items:center;gap:4px;margin-top:4px">'
+        + '<span style="width:18px;height:18px;background:#fff7bc;display:inline-block;border-radius:3px;border:1px solid #eee"></span> Rendah'
+        + '</div>';
+      div.innerHTML += '<div style="display:flex;align-items:center;gap:4px;margin-top:2px">'
+        + '<span style="width:18px;height:18px;background:#fec44f;display:inline-block;border-radius:3px;border:1px solid #eee"></span> Sedang'
+        + '</div>';
+      div.innerHTML += '<div style="display:flex;align-items:center;gap:4px;margin-top:2px">'
+        + '<span style="width:18px;height:18px;background:#fe9929;display:inline-block;border-radius:3px;border:1px solid #eee"></span> Tinggi'
+        + '</div>';
+      div.innerHTML += '<div style="display:flex;align-items:center;gap:4px;margin-top:2px">'
+        + '<span style="width:18px;height:18px;background:#cc0018;display:inline-block;border-radius:3px;border:1px solid #eee"></span> Sangat Tinggi'
+        + '</div>';
+      return div;
+    };
+    legend.addTo(heatMapInstance);
   },60);
 }
 
@@ -533,8 +629,28 @@ document.addEventListener('click', (e)=>{
 });
 
 /* Start */
-loadCSV(CSV_PATH);
+// Data hanya akan divisualisasikan setelah user upload CSV
+
+// Event handler upload CSV
+document.addEventListener('DOMContentLoaded', function() {
+  const btnUpload = document.getElementById('btnUploadCSV');
+  const inputFile = document.getElementById('csvInput');
+  const fileNameSpan = document.getElementById('csvFileName');
+  const csvInfo = document.getElementById('csvInfo');
+
+  btnUpload.onclick = function() {
+    inputFile.click();
+  };
+
+  inputFile.onchange = function(e) {
+    if (inputFile.files && inputFile.files[0]) {
+      fileNameSpan.textContent = inputFile.files[0].name;
+      loadCSV(inputFile.files[0]);
+      csvInfo.innerHTML = 'CSV: <code style="background:#0b1220;padding:2px 6px;border-radius:4px;margin-left:6px">' + inputFile.files[0].name + '</code>';
+    }
+  };
+});
+
 </script>
 </body>
 </html>
-
